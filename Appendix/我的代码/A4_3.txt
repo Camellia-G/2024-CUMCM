@@ -1,0 +1,140 @@
+% 常量定义
+v1 = 100;         % 线速度 cm/s
+r0=170;           % 螺距   cm
+a_A42 = 16*r0;  % 初始半径                          原本是%;a = 2*r0
+b_A42 = r0 / (2*pi); % 螺距 b = P / (2*pi)
+t_total_A42 = 101;   % 总时间
+dt_A42 = 1;          % 时间步长
+L1=341-27.5*2;
+L2=220-27.5*2;
+n_steps = t_total_A42 / dt_A42;
+t_end=1357;         %龙头前把手到达进入点时刻
+R1=2*3*1.7/6;
+R2=3*1.7/6;
+L_round1=2*pi*3*1.7/6;
+L_round2=pi*3*1.7/6;
+% 初始化时间和角度
+theta_A42 = zeros(n_steps, 224); % 存储每个时间步的角度，步数X第i个板凳
+x_A42=zeros(n_steps,224);         
+y_A42=zeros(n_steps,224);
+r_A42=zeros(n_steps,224);
+v_A42=zeros(101,224);   
+time_A42 = (0:dt_A42:t_total_A42)';
+%各把手进入时刻状态矩阵
+t_statein=zeros(224,1);
+%初始化各点位置
+x_A42(1,:)=x(t_end,:);
+y_A42(1,:)=y(t_end,:);
+r_A42(1,:)=r(t_end,:);
+v_A42(1,:)=v(t_end,:);
+theta_A42(1,:)=theta(t_end,:); % 初始角度
+%初始化龙头前把手位置
+v_A42(:,1)=v1; x_A42(1,1)=340;y_A42(1,1)=0;r_A42(1,1)=340;
+%初始化时刻状态矩阵
+for t_idx_A4=1:101
+   t_statein(t_idx_A4)=2*(t_idx_A4-1)+1; 
+end
+%计算龙头盘出位置
+% 数值积分：通过时间积分得到角度 theta(t)
+theta_A42(12,1)=-28*pi;
+x_A42(12,1)=255;y_A42(12,1)=0;
+for t_idx = 13:n_steps
+    dtheta_dt = v1 / sqrt(b_A42^2 + (a_A42 + b_A42 * theta_A42(t_idx-1,1))^2);
+    theta_A42(t_idx,1) = theta_A42(t_idx-1,1) + dtheta_dt * dt_A42;
+    x_A42(t_idx,1) = -(a_A42 + b_A42 .* theta_A42(t_idx,1)) .* cos(theta_A42(t_idx,1));
+    y_A42(t_idx,1) = -(a_A42 + b_A42 .* theta_A42(t_idx,1)) .* sin(theta_A42(t_idx,1));
+end
+
+cntin=1;cntout=0;
+for t_idx_A4=2:101
+    if(mod(t_idx_A4,2)==1)
+        cntin=cntin+1; 
+       x_A42(t_idx_A4,cntin)=-255;
+       y_A42(t_idx_A4,cntin)=0;
+       theta_A42(t_idx_A4,cntin)=-29*pi;
+       v_A42(t_idx_A4,cntin)=v_A42(t_idx_A4-1,cntin);
+    else
+        %计算第cntin+1个板凳的位置
+        apf_change=L2/r_A42(t_idx_A4-1,cntin+1);
+        theta_A42(t_idx_A4,cntin+1)=theta_A42(t_idx_A4-1,cntin+1)-apf_change;
+        r_A42(t_idx_A4,cntin+1)=-(a_A42+b_A42*apf_change)+r_A42(t_idx_A4-1,cntin+1);
+        x_A42(t_idx_A4,cntin+1)=r_A42(t_idx_A4,cntin+1)*cos(-apf_change+theta_A42(t_idx_A4-1,cntin+1));
+        y_A42(t_idx_A4,cntin+1)=r_A42(t_idx_A4,cntin+1)*sin(-apf_change+theta_A42(t_idx_A4-1,cntin+1));
+        vx=(x_A42(t_idx_A4,cntin+1)-x_A42(t_idx_A4-1,cntin+1))/dt_A42;
+        vy=(y_A42(t_idx_A4,cntin+1)-y_A42(t_idx_A4-1,cntin+1))/dt_A42;
+        v_A42(t_idx_A4,cntin+1)=sqrt(vx^2+vy^2);
+    end
+    %根据第cnt+1个点计算第cnt+2及以后板凳位置
+    for i_outfront=cntin+1:224
+        %迭代计算
+        F=@(angle) r_A42(t_idx_A4,i_outfront-1)^2+(a_A42+b_A42*angle)^2-2*r_A42(t_idx_A4,i_outfront-1)*(a_A42+b_A42*angle)*cos(theta_A42(t_idx_A4,i_outfront-1)-angle)-L2^2;
+        start0=theta_A42(t_idx_A4-1,i_outfront);
+        theta_A42(t_idx_A4,i_outfront)=fsolve(F,double(start0));
+        x_A42(t_idx_A4,i_outfront) = (a_A42 + b_A42 .* theta(t_idx_A4,i_outfront)) .* cos(theta_A42(t_idx_A4,i_outfront));
+        y_A42(t_idx_A4,i_outfront) = (a_A42 + b_A42 .* theta(t_idx_A4,i_outfront)) .* sin(theta_A42(t_idx_A4,i_outfront));
+        r_A42(t_idx_A4,i_outfront)=sqrt(x_A42(t_idx_A4,i_outfront)^2+y_A42(t_idx_A4,i_outfront)^2);
+        vx=(x_A42(t_idx_A4,i_outfront)-x_A42(t_idx_A4-1,i_outfront))/dt_A42;
+        vy=(y_A42(t_idx_A4,i_outfront)-y_A42(t_idx_A4-1,i_outfront))/dt_A42;
+        v_A42(t_idx_A4,i_outfront)=sqrt(vx^2+vy^2);
+    end
+    if(t_idx_A4>8&&mod(t_idx_A4,2)==0)
+       cntout=cntout+1; 
+%        x_A42(t_idx_A4,cntout)=-340;
+%        y_A42(t_idx_A4,cntout)=0;
+%        v_A42(t_idx_A4,cntout)=v_A42(t_idx_A4-11,cntout);
+    end
+
+    %计算圆弧中各点位置
+    for i_in=1+cntout:cntin
+        v_A42(t_idx_A4,i_in)=v_A42(t_idx_A4-1,i_in);
+        L_now=v_A42(t_idx_A4,i_in)*(t_idx_A4-(2*i_in-1));
+        if(L_now<L_round1)
+           s_round1=1.5*1.7- R1;
+           theta_round1=L_now/R1;
+           r_round1=sqrt(s_round1^2+R1^2-2*s_round1*R1*cos(pi-theta_round1));
+           apf_round1=acos((s_round1^2+r_round1^2-R1^2)/(2*r_round1*s_round1));
+           x_A42(t_idx_A4,i_in)=r_round1*cos(apf_round1);
+           y_A42(t_idx_A4,i_in)=r_round1*sin(apf_round1);
+        else
+            L_real=L_now-L_round1;
+            s_round2=1.5*1.7- R2;
+           theta_round2=L_real/R2;
+           r_round2=sqrt(s_round2^2+R2^2-2*s_round2*R1*cos(pi-theta_round2));
+           apf_round2=acos((s_round2^2+r_round2^2-R2^2)/(2*r_round2*s_round2));
+           x_A42(t_idx_A4,i_in)=r_round2*cos(pi-apf_round2);
+           y_A42(t_idx_A4,i_in)=r_round2*sin(pi-apf_round2);
+        end
+        %11时刻后计算出去板凳位置
+        if(t_idx_A4>8)
+            if(cntout==1)
+                continue;
+            elseif(cntout==2)
+                r_A42(t_idx_A4,1)=sqrt(x_A42(t_idx_A4,1)^2+y_A42(t_idx_A4,1)^2);
+                F=@(angle) r_A42(t_idx_A4,1)^2+(a_A42+b_A42*angle)^2+2*r_A42(t_idx_A4,1)*(a_A42+b_A42*angle)*cos(theta_A42(t_idx_A4,1)-angle)-L1^2;
+                start0=theta_A42(t_idx_A4-1,2);           
+                theta_A42(t_idx_A4,2)=fsolve(F,start0);
+                x_A42(t_idx_A4,2) = -(a_A42 + b_A42 .* theta_A42(t_idx_A4,2)) .* cos(theta_A42(t_idx_A4,2));
+                y_A42(t_idx_A4,2) = -(a_A42 + b_A42 .* theta_A42(t_idx_A4,2)) .* sin(theta_A42(t_idx_A4,2));   
+            else
+                r_A42(t_idx_A4,1)=sqrt(x_A42(t_idx_A4,1)^2+y_A42(t_idx_A4,1)^2);
+                F=@(angle) r_A42(t_idx_A4,1)^2+(a_A42+b_A42*angle)^2+2*r_A42(t_idx_A4,1)*(a_A42+b_A42*angle)*cos(theta_A42(t_idx_A4,1)-angle)-L1^2;
+                start0=theta_A42(t_idx_A4-1,2);           
+                theta_A42(t_idx_A4,2)=fsolve(F,start0);
+                x_A42(t_idx_A4,2) = -(a_A42 + b_A42 .* theta_A42(t_idx_A4,2)) .* cos(theta_A42(t_idx_A4,2));
+                y_A42(t_idx_A4,2) = -(a_A42 + b_A42 .* theta_A42(t_idx_A4,2)) .* sin(theta_A42(t_idx_A4,2));
+                for i_outlate=3:cntout
+                    %迭代计算
+                    F=@(angle) r_A42(t_idx_A4,i_outlate-1)^2+(a_A42+b_A42*angle)^2+2*r_A42(t_idx_A4,i_outlate-1)*(a_A42+b_A42*angle)*cos(theta_A42(t_idx_A4,i_outlate-1)-angle)-L2^2;
+                    start0=theta_A42(t_idx_A4-1,i_outlate);
+                    theta_A42(t_idx_A4,i_outlate)=fsolve(F,double(start0));
+                    x_A42(t_idx_A4,i_outlate) = -(a_A42 + b_A42 .* theta(t_idx_A4,i_outlate)) .* cos(theta_A42(t_idx_A4,i_outlate));
+                    y_A42(t_idx_A4,i_outlate) = -(a_A42 + b_A42.* theta(t_idx_A4,i_outlate)) .* sin(theta_A42(t_idx_A4,i_outlate));
+                    r_A42(t_idx_A4,i_outlate)=sqrt(x_A42(t_idx_A4,i_outlate)^2+y_A42(t_idx_A4,i_outlate)^2);
+                    vx=(x_A42(t_idx_A4,i_outlate)-x_A42(t_idx_A4-1,i_outlate))/dt_A42;
+                    vy=(y_A42(t_idx_A4,i_outlate)-y_A42(t_idx_A4-1,i_outlate))/dt_A42;
+                    v_A42(t_idx_A4,i_outlate)=sqrt(vx^2+vy^2);
+                end
+            end
+        end
+    end
+end 

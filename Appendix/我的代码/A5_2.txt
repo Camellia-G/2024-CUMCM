@@ -1,0 +1,20 @@
+dt = 1;
+for i_loong=2:224
+    for t_idx=578:677
+        if(t_idx == 578)
+        vx=abs(x(t_idx+dt,i_loong)-x(t_idx,i_loong))/dt;
+        vy=abs(y(t_idx+dt,i_loong)-y(t_idx,i_loong))/dt;
+        end
+        
+        if(t_idx == 677)
+        vx=abs(x(t_idx,i_loong)-x(t_idx-dt,i_loong))/dt;
+        vy=abs(y(t_idx,i_loong)-y(t_idx-dt,i_loong))/dt;
+        end
+        
+        if(t_idx >= 579 && t_idx <= 676 )
+        vx=abs(x(t_idx+dt,i_loong)-x(t_idx-dt,i_loong))/(2*dt);
+        vy=abs(y(t_idx+dt,i_loong)-y(t_idx-dt,i_loong))/(2*dt);
+        end
+        v(t_idx,i_loong)=sqrt(vx^2+vy^2);
+    end  
+end

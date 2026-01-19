@@ -1,0 +1,98 @@
+v1 = 100;         % 线速度 cm/s
+r0=55;           % 螺距   cm
+a = 16*r0;  % 初始半径
+b = r0 / (2*pi); % 螺距 b = P / (2*pi)
+t_start = 401;   %起始时间
+t_total = 501;   % 总时间
+dt = 0.1;          % 时间步长
+L1=341-27.5*2;
+L2=220-27.5*2;
+n_A2steps = (t_total-t_start) / dt;
+% 初始化时间和角度
+theta11 = zeros(n_A2steps, 224); % 存储每个时间步的角度，步数X第i个板凳
+r11=zeros(n_A2steps,224);
+x11=zeros(n_A2steps,224);         
+y11=zeros(n_A2steps,224);
+v_A2=zeros(224,1);
+
+x11(1,:)=x(401,:);             % 从401-1 s 处计算
+y11(1,:)=y(401,:);
+theta11(1,:)=theta(401,:);
+ %计算400s时r值r11(1,:)=sqrt(x(401,:)^2+y(401,:)^2);
+for i_loong1=1:224
+   r11(1,i_loong1)=sqrt(x(401,i_loong1)^2+y(401,i_loong1)^2); 
+end
+temp=0; %标记是否发生碰撞
+%计算“龙头”对角点坐标位置
+for i_A2steps=2:n_A2steps
+    if(temp==1)
+        break;
+    end
+    %基于当前位置对于后面把手位置及角度的计算
+    %计算龙头位置
+    dtheta_dt = -v1 / sqrt(b^2 + (a + b * theta11(i_A2steps-1,1))^2);
+    theta11(i_A2steps,1) = theta11(i_A2steps-1,1) + dtheta_dt * dt;
+    x11(i_A2steps,1) = (a + b .* theta11(i_A2steps,1)) .* cos(theta11(i_A2steps,1));
+    y11(i_A2steps,1) = (a + b .* theta11(i_A2steps,1)) .* sin(theta11(i_A2steps,1));
+    r11(i_A2steps,1)=   a + b .* theta11(i_A2steps,1); 
+    %计算第一节龙身位置
+    F=@(angle) r11(i_A2steps,1)^2+(a+b*angle)^2-2*r11(i_A2steps,1)*(a+b*angle)*cos(theta11(i_A2steps,1)-angle)-L1^2;
+    start0=theta11(i_A2steps-1,2);
+    theta11(i_A2steps,2)=fsolve(F,start0);
+    x11(i_A2steps,2) = (a + b .* theta11(i_A2steps,2)) .* cos(theta11(i_A2steps,2));
+    y11(i_A2steps,2) = (a + b .* theta11(i_A2steps,2)) .* sin(theta11(i_A2steps,2));  
+    r11(i_A2steps,2)=   a + b .* theta11(i_A2steps,2);
+    %计算其余龙身
+    for i_loong = 3:224
+            F=@(angle) r11(i_A2steps,i_loong-1)^2+(a+b*angle)^2-2*r11(i_A2steps,i_loong-1)*(a+b*angle)*cos(theta11(i_A2steps,i_loong-1)-angle)-L2^2;
+            start0=theta11(i_A2steps-1,i_loong);
+            theta11(i_A2steps,i_loong)=fsolve(F,double(start0));
+            x11(i_A2steps,i_loong) = (a + b .* theta11(i_A2steps,i_loong)) .* cos(theta11(i_A2steps,i_loong));
+            y11(i_A2steps,i_loong) = (a + b .* theta11(i_A2steps,i_loong)) .* sin(theta11(i_A2steps,i_loong));
+            r11(i_A2steps,i_loong)=a + b .* theta11(i_A2steps,i_loong);
+    end
+    for t_idx2 = 1:160
+        Rb = r11(i_A2steps,1); feib = theta11(i_A2steps,1);%当前时刻龙头前把手
+        Rc = r11(i_A2steps,2); feic = theta11(i_A2steps,2);%当前时刻龙头后把手
+        dfei1 =abs(feib - feic); 
+        %正弦定理
+        feiabc = abs(asin(Rc*sin(dfei1)/L1));
+        feiabd = pi - feiabc + atan(15/27.5);
+        r_point = sqrt((15^2+27.5^2)+(Rb)^2-2 * (15^2+27.5^2)^0.5 * Rb * cos(feiabd));
+      
+        %正弦定理
+        feidab = abs(asin(((15^2+27.5^2)^0.5) * sin(feiabd)/r_point));
+        %解得目标角度
+        feid = -feidab + feib;
+    
+        %转化为直角坐标
+        x_point = r_point * cos(feid);
+        y_point = r_point * sin(feid);
+    
+        %建立可疑碰撞板凳的直线模型
+        x21 = x11(i_A2steps,t_idx2+1); y21 = y11(i_A2steps,t_idx2+1);
+        x22 = x11(i_A2steps,t_idx2+2); y22 = y11(i_A2steps,t_idx2+2);
+        k=(y22-y21)/(x22-x21);
+        %求出点到直线的距离
+        Dec = abs(k*x_point-y_point+y21-k*x21 )/sqrt(1 + k^2 );
+        if(Dec <= 15)
+            %标志位置一
+            disp('此时为：');
+            disp(Rb);
+            disp(feib)
+            disp('板凳碰撞！');
+            temp=1;
+            R_confict=Rb;
+            feib_confict=feib;
+            T_confict=i_A2steps;
+            break;
+        end 
+    end
+end
+v_A2(1)=v1;
+for i_loong2=2:224   
+      vx=abs(x11(T_confict,i_loong2)-x11(T_confict-1,i_loong2))/dt;
+      vy=abs(y11(T_confict,i_loong2)-y11(T_confict-1,i_loong2))/dt;
+      v_A2(i_loong2)=sqrt(vx^2+vy^2);
+end
+disp(T_confict);

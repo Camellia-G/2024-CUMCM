@@ -1,0 +1,101 @@
+% 常量定义
+v1 = 100;         % 线速度 cm/s
+r0=55;           % 螺距   cm
+t_totalA3= 434;   % 总时间
+dtA3 = 1;          % 时间步长
+r_cricle=900/2;     %圆半径 cm
+dr_change=0.01;     %螺距变化量由5逐步递减，求精确结果
+L1=341-27.5*2;
+L2=220-27.5*2;
+n_stepsA3 = t_totalA3 / dtA3;
+time = (0:dtA3:t_totalA3)';
+R_confict=140;
+while(R_confict<=r_cricle)
+    r0 = r0 - dr_change;
+    % 初始化时间和角度
+    theta_A376 = zeros(n_stepsA3, 224); % 存储每个时间步的角度，步数X第i个板凳
+    x_A376=zeros(n_stepsA3,224);         
+    y_A376=zeros(n_stepsA3,224);
+    r_A376=zeros(n_stepsA3,224);
+    theta_A376(1,1) = 0;                % 初始角度
+    a = 16*r0;  % 初始半径
+    b = r0 / (2*pi); % 螺距 b = P / (2*pi)
+    
+    % 数值积分：通过时间积分得到角度 theta(t)
+    % 解出当前螺距所有龙头在不同时间步的位置
+    
+    for t_idxA376 = 2:n_stepsA3
+        dtheta_dt = -v1 / sqrt(b^2 + (a + b * theta_A376(t_idxA376-1,1))^2);
+        theta_A376(t_idxA376,1) = theta_A376(t_idxA376-1,1) + dtheta_dt * dtA3;
+    end
+
+    % 计算龙头轨迹
+    x_A376(:,1) = (a + b .* theta_A376(:,1)) .* cos(theta_A376(:,1));
+    y_A376(:,1) = (a + b .* theta_A376(:,1)) .* sin(theta_A376(:,1));
+    %计算所有时间步下第一个龙身位置
+    for t_idxA376 = 1:n_stepsA3
+        r_A376(t_idxA376,1)=sqrt(x_A376(t_idxA376,1)^2+y_A376(t_idxA376,1)^2);
+        F=@(angle) r_A376(t_idxA376,1)^2+(a+b*angle)^2-2*r_A376(t_idxA376,1)*(a+b*angle)*cos(theta_A376(t_idxA376,1)-angle)-L1^2;
+        if(t_idxA376==1)
+            start0_A3=L1/880;
+        else
+            start0_A3=theta_A376(t_idxA376-1,2);
+        end
+        theta_A376(t_idxA376,2)=fsolve(F,start0_A3);
+        x_A376(t_idxA376,2) = (a + b .* theta_A376(t_idxA376,2)) .* cos(theta_A376(t_idxA376,2));
+        y_A376(t_idxA376,2) = (a + b .* theta_A376(t_idxA376,2)) .* sin(theta_A376(t_idxA376,2));   
+    end
+    %计算其余龙身
+    for i_loongA3 = 3:61
+        for t_idxA376 = 1:n_stepsA3
+            r_A376(t_idxA376,i_loongA3-1)=sqrt(x_A376(t_idxA376,i_loongA3-1)^2+y_A376(t_idxA376,i_loongA3-1)^2);
+            F=@(angle) r_A376(t_idxA376,i_loongA3-1)^2+(a+b*angle)^2-2*r_A376(t_idxA376,i_loongA3-1)*(a+b*angle)*cos(theta_A376(t_idxA376,i_loongA3-1)-angle)-L2^2;
+           if(t_idxA376==1)
+                   start0_A3=L1/880+(i_loongA3-2)*L2/r_A376(1,i_loongA3-1);
+           else
+                start0_A3=theta_A376(t_idxA376-1,i_loongA3);
+           end
+            theta_A376(t_idxA376,i_loongA3)=fsolve(F,double(start0_A3));
+            x_A376(t_idxA376,i_loongA3) = (a + b .* theta_A376(t_idxA376,i_loongA3)) .* cos(theta_A376(t_idxA376,i_loongA3));
+            y_A376(t_idxA376,i_loongA3) = (a + b .* theta_A376(t_idxA376,i_loongA3)) .* sin(theta_A376(t_idxA376,i_loongA3));
+        end
+    end
+    temp=0;
+    for t_idxA376 = 1:n_stepsA3
+         if(temp==1)
+            break;
+         end
+        for t_idx3 = 1:59
+                Rb = r_A376(t_idxA376,1); feib = theta_A376(t_idxA376,1);%当前时刻龙头前把手
+                Rc = r_A376(t_idxA376,2); feic = theta_A376(t_idxA376,2);%当前时刻龙头后把手
+                dfei1 =abs(feib - feic); 
+                %正弦定理
+                feiabc = asin(Rc*sin(dfei1)/L1);
+                feiabd = pi - feiabc + atan(15/27.5);
+                r_point = sqrt((15^2+27.5^2)+(Rb)^2-2 * (15^2+27.5^2)^0.5 * Rb * cos(feiabd));
+
+                %正弦定理
+                feidab = abs(asin(((15^2+27.5^2)^0.5) * sin(feiabd)/r_point));
+                %解得目标角度
+                feid = -feidab + feib;
+
+                %转化为直角坐标
+                x_point = r_point * cos(feid);
+                y_point = r_point * sin(feid);
+
+                %建立可疑碰撞板凳的直线模型
+                x21 = x_A376(t_idxA376,t_idx3+1); y21 = y_A376(t_idxA376,t_idx3+1);
+                x22 = x_A376(t_idxA376,t_idx3+2); y22 = y_A376(t_idxA376,t_idx3+2);
+                k=(y22-y21)/(x22-x21);
+                %求出点到直线的距离
+                Dec = abs(k*x_point-y_point+y21-k*x21 )/sqrt(1 + k^2 );
+                if(Dec <= 15)
+                    %标志位置一
+                    temp=1;
+                    R_confict=Rb;
+                    break;
+                end 
+        end
+    end
+end
+disp(r0);

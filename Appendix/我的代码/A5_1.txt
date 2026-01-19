@@ -1,0 +1,63 @@
+% 常量定义
+v1 = 200.7;         % 线速度 cm/s
+r0=170;           % 螺距   cm
+a = 16*r0;  % 初始半径                          原本是%;a = 2*r0
+b = r0 / (2*pi); % 螺距 b = P / (2*pi)
+t_total = 700;   % 总时间
+dt = 1;          % 时间步长
+L1=341-27.5*2;
+L2=220-27.5*2;
+n_steps = t_total / dt;
+
+% 初始化时间和角度
+theta = zeros(n_steps, 224); % 存储每个时间步的角度，步数X第i个板凳
+x=zeros(n_steps,224);         
+y=zeros(n_steps,224);
+r=zeros(n_steps,224);
+v=zeros(1500,224);
+v(:,1)=v1;
+theta(1,1) = 0; % 初始角度      %原本是theta(1,1) =;-5 * pi/ 6
+time = (0:dt:t_total)';
+
+% 数值积分：通过时间积分得到角度 theta(t)
+for t_idx = 2:n_steps
+    dtheta_dt = -v1 / sqrt(b^2 + (a + b * theta(t_idx-1,1))^2); %原本是 ;dtheta_dt = v1 / sqrt(b^2 + (a + b * theta(t_idx-1,1))^2)
+    theta(t_idx,1) = theta(t_idx-1,1) + dtheta_dt * dt;
+end
+
+% 计算轨迹
+x(:,1) = (a + b .* theta(:,1)) .* cos(theta(:,1));
+y(:,1) = (a + b .* theta(:,1)) .* sin(theta(:,1));
+%计算第一个龙身位置
+for t_idx = 1:n_steps
+    r(t_idx,1)=sqrt(x(t_idx,1)^2+y(t_idx,1)^2);
+    if(r(t_idx,1) <= 255)
+        break;
+    end
+    F=@(angle) r(t_idx,1)^2+(a+b*angle)^2-2*r(t_idx,1)*(a+b*angle)*cos(theta(t_idx,1)-angle)-L1^2;
+    if(t_idx==1)
+        start0=L1/880;
+    else
+        start0=theta(t_idx-1,2);
+    end
+    theta(t_idx,2)=fsolve(F,start0);
+    x(t_idx,2) = (a + b .* theta(t_idx,2)) .* cos(theta(t_idx,2));
+    y(t_idx,2) = (a + b .* theta(t_idx,2)) .* sin(theta(t_idx,2));   
+end
+%计算其余龙身
+for i_loong = 3:224
+    for t_idx = 1:n_steps
+        r(t_idx,i_loong-1)=sqrt(x(t_idx,i_loong-1)^2+y(t_idx,i_loong-1)^2);
+        F=@(angle) r(t_idx,i_loong-1)^2+(a+b*angle)^2-2*r(t_idx,i_loong-1)*(a+b*angle)*cos(theta(t_idx,i_loong-1)-angle)-L2^2;
+       if(t_idx==1)
+               start0=L1/880+(i_loong-2)*L2/r(1,i_loong-1);
+       else
+            start0=theta(t_idx-1,i_loong);
+       end
+        theta(t_idx,i_loong)=fsolve(F,double(start0));
+        x(t_idx,i_loong) = (a + b .* theta(t_idx,i_loong)) .* cos(theta(t_idx,i_loong));
+        y(t_idx,i_loong) = (a + b .* theta(t_idx,i_loong)) .* sin(theta(t_idx,i_loong));
+    end
+end
+
+
